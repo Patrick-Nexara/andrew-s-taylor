@@ -11,7 +11,7 @@ Else {
 
 $templateFilePath = "C:\ProgramData\Debloat"
 
-$zipUrl = "https://github.com/andrew-s-taylor/public/releases/download/DeBloat/RemoveBloat.zip"
+$zipUrl = "https://raw.githubusercontent.com/Patrick-Nexara/andrew-s-taylor/refs/heads/main/De-Bloat/RemoveBloat.zip"
 $zipPath = "$templateFilePath\RemoveBloat.zip"
 $extractPath = "$templateFilePath"
 
