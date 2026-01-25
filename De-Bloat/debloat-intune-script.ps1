@@ -20,7 +20,7 @@ Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
 
 
 # Define apps to whitelist (comma-separated)
-$whitelistApps = ""
+$whitelistApps = "MicrosoftCorporationII.QuickAssist"
 
 # Define apps to bloat (comma-separated)
 $bloatApps = ""
