@@ -314,7 +314,8 @@ $WhitelistedApps = @(
     'Microsoft.ZuneVideo',
     'Microsoft.SysinternalsSuite',
     'MicrosoftCorporationII.QuickAssist',
-    'Microsoft.WindowsAlarms'
+    'Microsoft.WindowsAlarms',
+    'Microsoft.GetHelp'
 )
 ##If $customwhitelist is set, split on the comma and add to whitelist
 if ($customwhitelist) {
