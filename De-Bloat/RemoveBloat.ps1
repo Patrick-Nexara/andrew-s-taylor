@@ -17,7 +17,7 @@
 .OUTPUTS
 C:\ProgramData\Debloat\Debloat.log
 .NOTES
-  Version:        5.3.1
+  Version:        5.5.2
   Author:         Andrew Taylor
   Twitter:        @AndrewTaylor_2
   WWW:            andrewstaylor.com
@@ -168,6 +168,11 @@ C:\ProgramData\Debloat\Debloat.log
   Change 12/12/2025 - Various fixes with help from tlit60608-NKenny
   Change 12/12/2025 - Added custom bloat list parameter
   Change 13/01/2026 - HP get-package parameter fix
+  Change 20/01/2025 - Added Dell Optimizer
+  Change 06/02/2026 - Added Acer bloat
+  Change 10/02/2026 - Added Asus bloat and some fixes
+  Change 12/02/2026 - Dell and HP fixes
+  Change 20/03/2026 - Added Acer apps and McAfee WebAdvisor
 N/A
 #>
 
@@ -393,30 +398,10 @@ $NonRemovable = @(
 ##Combine the two arrays
 $appstoignore = $WhitelistedApps + $NonRemovable
 
+
 ##Bloat list for future reference
 $Bloatware = @(
     #Unnecessary Windows 10/11 AppX Apps
-    "*ActiproSoftwareLLC*"
-    "*AdobeSystemsIncorporated.AdobePhotoshopExpress*"
-    "*BubbleWitch3Saga*"
-    "*CandyCrush*"
-    "*DevHome*"
-    "*Disney*"
-    "*Dolby*"
-    "*Duolingo-LearnLanguagesforFree*"
-    "*EclipseManager*"
-    "*Facebook*"
-    "*Flipboard*"
-    "*gaming*"
-    "*Minecraft*"
-    "*Office*"
-    "*PandoraMediaInc*"
-    "*Royal Revolt*"
-    "*Speed Test*"
-    "*Spotify*"
-    "*Sway*"
-    "*Twitter*"
-    "*Wunderlist*"
     "AD2F1837.HPPrinterControl"
     "AppUp.IntelGraphicsExperience"
     "C27EB4BA.DropboxOEM*"
@@ -502,11 +487,18 @@ $Bloatware = @(
 ##If $customwhitelist is set, split on the comma and add to whitelist
 if ($custombloatlist) {
     $custombloatlistapps = $custombloatlist -split ","
-    foreach ($bloatyapp in $custombloatlistapps) {
-        ##Add to the array
-        $Bloatware += $bloatyapp
+
+    $Bloatware += $custombloatlistapps
+
+    foreach ($pattern in $custombloatlistapps) {
+        $appstoignore = $appstoignore | Where-Object { $_ -notlike $pattern }
     }
 }
+
+
+##Give them a quick de-dup
+$appstoignore = $appstoignore | Sort-Object -Unique
+$Bloatware    = $Bloatware    | Sort-Object -Unique
 
 
 $provisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -in $Bloatware -and $_.DisplayName -notin $appstoignore -and $_.DisplayName -notlike 'MicrosoftWindows.Voice*' -and $_.DisplayName -notlike 'Microsoft.LanguageExperiencePack*' -and $_.DisplayName -notlike 'MicrosoftWindows.Speech*' }
@@ -1663,6 +1655,10 @@ if ($manufacturer -like "*HP*") {
         "HP Insights Analytics - Dependencies"
         "HP Performance Advisor"
         "HP Presence Video"
+        "HP Audio Control"
+        "HP Documentation"
+        "AD2F1837.HPAudioControl"
+        "HP Connect Optimizer"
     )
 
 
@@ -1897,13 +1893,10 @@ if ($manufacturer -like "*Dell*") {
     ##Dell
 
     $UninstallPrograms = @(
-        "Dell Optimizer"
         "Dell Power Manager"
         "DellOptimizerUI"
         "Dell SupportAssist OS Recovery"
         "Dell SupportAssist"
-        "Dell Optimizer Service"
-        "Dell Optimizer Core"
         "DellInc.PartnerPromo"
         "DellInc.DellOptimizer"
         "DellInc.DellCommandUpdate"
@@ -2084,7 +2077,7 @@ foreach ($pattern in $uninstallPrograms) {
 
     ##Manual Removals
 
-    ##Dell Optimizer
+    ##Dell Optimizer Core
     $dellSA = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Where-Object { $_.DisplayName -like "Dell*Optimizer*Core" } | Select-Object -Property UninstallString
 
     ForEach ($sa in $dellSA) {
@@ -2097,6 +2090,21 @@ foreach ($pattern in $uninstallPrograms) {
             }
         }
     }
+
+        ##Dell Optimizer
+    $dellSA = Get-ChildItem -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Where-Object { $_.DisplayName -like "Dell*Optimizer" } | Select-Object -Property UninstallString
+
+    ForEach ($sa in $dellSA) {
+        If ($sa.UninstallString) {
+            try {
+                cmd.exe /c $sa.UninstallString -silent
+            }
+            catch {
+                Write-Warning "Failed to uninstall Dell Optimizer"
+            }
+        }
+    }
+
 
 
     ##Dell Dell SupportAssist Remediation
@@ -2457,6 +2465,12 @@ if ($manufacturer -like "Lenovo") {
         write-output "X-Rite Color Assistant uninstaller not found."
     }
 
+    ##Stop Lenovo UDC Service and Disable it
+    write-output "Stopping and disabling Lenovo UDC Service"
+Stop-Service "UDCService"
+Set-Service "UDCService" -StartupType Disabled
+write-output "Lenovo UDC Service Disabled"
+
 }
 
 
@@ -2652,6 +2666,209 @@ foreach ($pattern in $uninstallPrograms) {
     write-output "Removed Samsung bloat"
 }
 
+if ($manufacturer -like "*Acer*") {
+    write-output "Acer detected"
+    #Remove Acer bloat
+
+
+    $processnames = @(
+        "ACCSvc.exe"
+        "QASvc.exe"
+        "ProShieldService.exe"
+    )
+
+    foreach ($process in $processnames) {
+        write-output "Stopping Process $process"
+        Get-Process -Name $process | Stop-Process -Force
+        write-output "Process $process Stopped"
+    }
+
+    ##Acer Specific
+    $UninstallPrograms = @(
+        "Acer Configuration Manager"
+        "Acer Jumpstart"
+        "Acer Product Registration"
+        "Acer ProShield Plus"
+        "Acer ProShield Plus Service"
+        "Acer Purified Voice Console"
+        "Acer Control Centre"
+        "Acer Quick Access"
+        "Acer Quick Access Service"
+        "Password Generator Tool"
+        "Evernote"
+        "Dropbox promotion"
+        "Acer User Experience Improvement Program Service"
+        "DriverSetupUtility"
+        "ControlCenter Service"
+        "McAfee LiveSafe"
+        "Quick Access Service"
+        "User Experience Improvement Program Service"
+        "McAfee.wps"
+        "McAfeeWPSSparsePackage"
+        "Evernote.Evernote"
+        "C27EB4BA.DropboxOEM"
+        "{2B51C83A-465D-4EA9-9CDC-1ED95ED09AC6}"
+        "InsydeSoftwareCorp.AcerProShieldPlus"
+        "Evernote.Evernote"
+        "DTSInc.DTSAudioProcessing"
+        "C27EB4BA.DropboxOEM"
+        "AppUp.IntelOptaneMemoryandStorageManagement"
+        "AcerIncorporated.QuickAccess"
+        "AcerIncorporated.AcerRegistration"
+        "AcerIncorporated.4703949AD09F"
+        "AcerIncorporated.AcerPurifiedVoiceConsoleR"
+        "55121DominqueTerry.PasswordGeneratorTool"
+        
+    )
+
+
+
+    $UninstallPrograms = $UninstallPrograms | Where-Object { $appstoignore -notcontains $_ }
+
+
+    $InstalledPrograms = $allstring | Where-Object { $UninstallPrograms -contains $_.Name }
+    foreach ($app in $UninstallPrograms) {
+
+        if (Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $app -ErrorAction SilentlyContinue) {
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $app | Remove-AppxProvisionedPackage -Online
+            write-output "Removed provisioned package for $app."
+        }
+        else {
+            write-output "Provisioned package for $app not found."
+        }
+
+        if (Get-AppxPackage -allusers -Name $app -ErrorAction SilentlyContinue) {
+            Get-AppxPackage -allusers -Name $app | Remove-AppxPackage -AllUsers
+            write-output "Removed $app."
+        }
+        else {
+            write-output "$app not found."
+        }
+
+        UninstallAppFull -appName $app
+
+
+    }
+
+
+
+# Process each package pattern
+foreach ($pattern in $uninstallPrograms) {
+    $patternName = $pattern
+    $minVersion = $pattern.MinVersion
+    Write-Output "Checking for packages matching pattern: $patternName"
+
+    # Search for matching packages in the registry
+    $matchingPackages = @()
+    
+    # Check in 32-bit and 64-bit registry locations
+    $registryPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    )
+    
+    foreach ($registryPath in $registryPaths) {
+        $packages = Get-ItemProperty -Path $registryPath -ErrorAction SilentlyContinue | 
+                    Where-Object { $_.DisplayName -match $patternName }
+        
+        # Filter by minimum version if specified
+        if ($minVersion -and $packages) {
+            $packages = $packages | Where-Object { 
+                if ($_.DisplayVersion) {
+                    try {
+                        [version]$_.DisplayVersion -ge [version]$minVersion
+                    } catch {
+                        # If version comparison fails, include it anyway for safety
+                        $true
+                    }
+                } else {
+                    # If no version information, include it for safety
+                    $true
+                }
+            }
+        }
+        
+        $matchingPackages += $packages
+    }
+    
+    if ($matchingPackages.Count -eq 0) {
+        Write-Output "No packages found matching pattern: $patternName"
+        continue
+    }
+    
+    Write-Output "Found $($matchingPackages.Count) package(s) matching pattern: $patternName"
+    
+    # Process each matching package
+    foreach ($package in $matchingPackages) {
+        $displayName = $package.DisplayName
+        $uninstallString = $package.UninstallString
+        $quietUninstallString = $package.QuietUninstallString
+        $version = $package.DisplayVersion
+        
+        Write-Output "Attempting to uninstall: $displayName (Version: $version)"
+        
+        # Try to use the UninstallAppFull function first
+        Write-Output "Trying to uninstall via UninstallAppFull..."
+        UninstallAppFull -appName $displayName
+        
+        # If UninstallAppFull doesn't work, fall back to direct uninstallation
+        # Check if uninstall string exists and attempt uninstall
+        if ($quietUninstallString) {
+            Write-Output "Using quiet uninstall string: $quietUninstallString"
+            try {
+                if ($quietUninstallString -match "msiexec") {
+                    # For MSI-based uninstalls, add /quiet
+                    $uninstallCommand = $quietUninstallString + " /quiet"
+                    Start-Process "cmd.exe" -ArgumentList "/c $uninstallCommand" -Wait -NoNewWindow
+                } else {
+                    # For EXE-based uninstalls
+                    $uninstallParts = $quietUninstallString -split ' ', 2
+                    $uninstallExe = $uninstallParts[0].Trim('"')
+                    $uninstallArgs = if ($uninstallParts.Count -gt 1) { $uninstallParts[1] } else { "" }
+                    
+                    Start-Process -FilePath $uninstallExe -ArgumentList $uninstallArgs -Wait -NoNewWindow
+                }
+                Write-Output "Quiet uninstall completed for: $displayName"
+            } catch {
+                Write-Output "Error during quiet uninstall: $_"
+            }
+        } elseif ($uninstallString) {
+            Write-Output "Using standard uninstall string: $uninstallString"
+            try {
+                if ($uninstallString -match "msiexec") {
+                    # For MSI-based uninstalls, add /quiet
+                    if ($uninstallString -match "/I{") {
+                        # Change /I to /X for uninstall if needed
+                        $uninstallString = $uninstallString -replace "/I", "/X"
+                    }
+                    $uninstallCommand = $uninstallString + " /quiet"
+                    Start-Process "cmd.exe" -ArgumentList "/c $uninstallCommand" -Wait -NoNewWindow
+                } else {
+                    # For EXE-based uninstalls
+                    $uninstallParts = $uninstallString -split ' ', 2
+                    $uninstallExe = $uninstallParts[0].Trim('"')
+                    $uninstallArgs = if ($uninstallParts.Count -gt 1) { $uninstallParts[1] } else { "" }
+                    
+                    # Add silent parameters for common installers
+                    if ($uninstallString -match "uninstall.exe|uninst.exe|setup.exe|installer.exe") {
+                        $uninstallArgs += " /S /silent /quiet /uninstall"
+                    }
+                    
+                    Start-Process -FilePath $uninstallExe -ArgumentList $uninstallArgs -Wait -NoNewWindow
+                }
+                Write-Output "Standard uninstall completed for: $displayName"
+            } catch {
+                Write-Output "Error during standard uninstall: $_"
+            }
+        } else {
+            Write-Output "No uninstall string found for: $displayName"
+        }
+    }
+}
+
+    write-output "Removed Samsung bloat"
+}
+
 ##Remove bookmarks
 
 ##Enumerate all users
@@ -2666,6 +2883,92 @@ foreach ($user in $users) {
         }
     }
 }
+
+if ($manufacturer -like "*Asus*") {
+    write-output "Asus detected"
+    #Remove Asus bloat
+
+##ASUS OEMcode = B9ECED6F
+	
+    ##ASUS Specific 
+    ##You can decide which, if any, you wish to keep by including in customwhitelist
+	$UninstallPrograms = @(
+		"B9ECED6F.ASUSExpertWidget"											#defines F1-F4 hotkeys on Expertbook
+		"B9ECED6F.ASUSPCAssistant"											#MyAsus App on Expertbook, Vivobook
+		"AppUp.IntelGraphicsExperience"									#Intel Graphic mgmt utility	on Expertbook, Vivobook
+		"AppUp.IntelManagementandSecurityStatus"				#Intel Security mgmt utility on Expertbook
+		"DolbyLaboratories.DolbyAccess"									#Dolby sound utilities on Expertbook, Vivobook
+		"DolbyLaboratories.DolbyDigitalPlusDecoderOEM"	#Dolby sound utilities on Expertbook, Vivobook	
+		"DrivewintechTechnologyCo.DiracAudoManager"			#sound mgmt utility in Vivobook
+		"IntelligoTechnologyInc.541271065CCE8"					#suite of voice/microphone AI and Meeting utilities that Asus packages in Expertbook
+    )	
+
+    $UninstallPrograms = $UninstallPrograms | Where-Object { $appstoignore -notcontains $_ }
+
+    $InstalledPrograms = $allstring | Where-Object { $UninstallPrograms -contains $_.Name }
+    foreach ($app in $UninstallPrograms) {
+
+        if (Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $app -ErrorAction SilentlyContinue) {
+            Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $app | Remove-AppxProvisionedPackage -Online
+            write-output "Removed provisioned package for $app."
+        }
+        else {
+            write-output "Provisioned package for $app not found."
+        }
+
+        if (Get-AppxPackage -allusers -Name $app -ErrorAction SilentlyContinue) {
+            Get-AppxPackage -allusers -Name $app | Remove-AppxPackage -AllUsers
+            write-output "Removed $app."
+        }
+        else {
+            write-output "$app not found."
+        }
+
+        UninstallAppFull -appName $app
+
+    }
+
+	write-output "Removing Asus Theme and background "
+	##Remove Asus OEM theme and background image
+	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes"
+
+	# Check and remove ThemeName if it exists
+	if (Get-ItemProperty -Path $registryPath -Name "ThemeName" -ErrorAction SilentlyContinue) {
+		write-output "remove Asus Theme"
+		Remove-ItemProperty -Path $registryPath -Name "ThemeName"
+	}
+
+	# Check and remove DesktopBackground if it exists
+	if (Get-ItemProperty -Path $registryPath -Name "DesktopBackground" -ErrorAction SilentlyContinue) {
+		write-output "Remove Asus deskbkgrnd"
+		Remove-ItemProperty -Path $registryPath -Name "DesktopBackground"
+	}
+
+	#Clear the pre-defined ASUS OEM task bar definition file and registry key or it will override default user settings
+	$tbfile = "C:\Windows\OEM\TaskbarLayoutModification.xml"
+    if ((Test-Path -Path $tbfile -PathType Leaf) -and ((Get-Item $tbfile).LastWriteTimeUTC -lt $startUtc)) {
+		write-output "remove asus taskbar"
+		Remove-Item -Path $tbfile -Force 
+	}
+	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
+	$reg = Get-ItemProperty -Path $registryPath -ErrorAction SilentlyContinue
+	if (($reg -and $reg.PSObject.Properties.Name -contains "LayoutXMLPath") -and ($reg.LayoutXMLPath -ieq $tbfile)) {
+		write-output "remove Asus layoutxmlpath"
+		Remove-ItemProperty -Path $registryPath -Name "LayoutXMLPath"
+	}
+
+	$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
+	$reg = Get-ItemProperty -Path $registryPath -ErrorAction SilentlyContinue
+	if (($reg -and $reg.PSObject.Properties.Name -contains "LayoutXMLPath") -and ($reg.LayoutXMLPath -ieq $tbfile)) {
+		write-output "remove Asus layoutxmlpath"
+		Remove-ItemProperty -Path $registryPath -Name "LayoutXMLPath" -ErrorAction SilentlyContinue
+	}
+
+} 
+#end ASUS specific
+
+
+
 
 
 ############################################################################################################
@@ -2735,8 +3038,8 @@ if ($mcafeeinstalled -eq "true") {
     start-process "C:\ProgramData\Debloat\mcnew\Mccleanup.exe" -ArgumentList "-p StopServices,MFSY,PEF,MXD,CSP,Sustainability,MOCP,MFP,APPSTATS,Auth,EMproxy,FWdiver,HW,MAS,MAT,MBK,MCPR,McProxy,McSvcHost,VUL,MHN,MNA,MOBK,MPFP,MPFPCU,MPS,SHRED,MPSCU,MQC,MQCCU,MSAD,MSHR,MSK,MSKCU,MWL,NMC,RedirSvc,VS,REMEDIATION,MSC,YAP,TRUEKEY,LAM,PCB,Symlink,SafeConnect,MGS,WMIRemover,RESIDUE -v -s"
     write-output "McAfee Removal Tool has been run"
 
-    $InstalledPrograms = $allstring | Where-Object { ($_.Name -like "*McAfee*") }
-    $InstalledPrograms | ForEach-Object {
+  $InstalledPrograms = $allstring | Where-Object { ($_.Name -like "*McAfee*") -and ($_.Name -notlike "*WebAdvisor*") }
+      $InstalledPrograms | ForEach-Object {
 
         write-output "Attempting to uninstall: [$($_.Name)]..."
         $uninstallcommand = $_.String
@@ -2784,6 +3087,12 @@ if ($mcafeeinstalled -eq "true") {
     get-appxprovisionedpackage -online | sort-object displayname | format-table displayname, packagename
     get-appxpackage -allusers | sort-object name | format-table name, packagefullname
     Get-AppxProvisionedPackage -Online | Where-Object DisplayName -eq "McAfeeWPSSparsePackage" | Remove-AppxProvisionedPackage -Online -AllUsers
+
+##Remove webadvisor
+
+    if (Test-Path "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor\Uninstall.exe") { Start-Process -FilePath "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor\Uninstall.exe" -ArgumentList "/s" -WorkingDirectory "${env:ProgramFiles(x86)}\McAfee\SiteAdvisor" -Wait -NoNewWindow }
+    Start-Sleep -Seconds 5
+    if (Test-Path "${env:ProgramFiles(x86)}\McAfee") { Remove-Item -Path "${env:ProgramFiles(x86)}\McAfee" -Recurse -Force }
 }
 
 
@@ -2950,12 +3259,13 @@ Stop-Transcript
 
 ##Adding random padding to stop it removing actual useful text
 ##More padding
-##And more pad
+##And more
+##More
 # SIG # Begin signature block
 # MIIoUAYJKoZIhvcNAQcCoIIoQTCCKD0CAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCKOBJFHHuZIXhh
-# NdTZVETCZS/urbF6Uho13ws8gX7EO6CCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA9Z2pPOYdZHFr4
+# Ex7cD4cYacUv7KJKji3Zc4iJVbqUB6CCIU0wggWNMIIEdaADAgECAhAOmxiO+dAt
 # 5+/bUOIIQBhaMA0GCSqGSIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
 # BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBa
@@ -3138,34 +3448,34 @@ Stop-Transcript
 # U2lnbmluZyBSU0E0MDk2IFNIQTM4NCAyMDIxIENBMQIQCLGfzbPa87AxVVgIAS8A
 # 6TANBglghkgBZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkG
 # CSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEE
-# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCAV68ZfVFPsZ3JH/5oXbaVVQCnbr3563WTO
-# nMvzxdwtTjANBgkqhkiG9w0BAQEFAASCAgAsKyAhqdQTxfeEP+S1pg4VLLbRdrYB
-# DTOYhcLunfZ6v7Hv5jTGE2eGwUFWmUWhhi1oumc2J5AJ6yBCM0YHCG3PcR2SQBjL
-# 4sfK2InlAxKtLE3Lk1u1tq5zPWT4uI/NvqPmkuMxiA47j0OXJXL5cJ+TLAEsXQoy
-# edNG3ESVQPNgh2fatgQp8oU7TV3IS5SDNJb3UxVQhbkepBFY/BhPPeAyoQfSHRIw
-# QLrX4HR7awZszMIsV5H+61EvwfQwJawSzp0rGHVlrlWwJXnxEJ20w6r5dW5ekjW7
-# 7S+MA04sdqcdtoFJFR8YtzTjg/C1EqAh/H7YnJvMlUrxSeJf0KqTz3AbYMWW+Un4
-# qGdfpaFWhgcLBqXfLmuNNIHA1ljAvTZ+tvcvh4tB8Z7UZzpHAKtusizkJhI+UMyF
-# qSXj0Dq/imxbCi7YhYHP0EWFMHozcgaJeQAhZ0BL/wWagEMus8RgjwQIm4xOj4GD
-# kIM/ryYyyhjkLUjDa646sjYcL38bS9OsaQXHjeMrjFUSIlD2odRfbhShKgr+93xu
-# aPA8eP6X3XdrUxyJEXXuucK0dnaevuhVYW6fbKB29VehVGiQRXLKuXgiuEFuozGM
-# fNVVVEIPyObJhhgXbjvNSkX4+LDabkKnTYG7QxMHaU6BsrsLOTzJBCZcDCFeLixb
-# 5lYobuGSbHMUk6GCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
+# AYI3AgEVMC8GCSqGSIb3DQEJBDEiBCCrdlUCT0i6hh6kB6IxjWoavroRhpN+o2cQ
+# dlFjNzofKDANBgkqhkiG9w0BAQEFAASCAgBECAu+sOEp/imgGRXtmo/Q7AnXZHrU
+# P3hrZpFj/9oatajfyFfjaRRfh7aI3zXDi0nCpplOJvzxOY6jEDZ0nu+8mIaNMahX
+# t5twaXQcz5bMT9s+7+5H63rxQauYgVUVTJ0dF+VNFzK6hVt5b+N+7qDSWTdtaItA
+# UsjP8nVWIKTf3hS7w0l89qapk9VNePTMMbFI8Y6CyZxdWH7OoSnq61l9RSyLXB/E
+# /u5k2jFxLrEGBbrrG0y5Hl87dGYnZpwIZi4eUDQjcqvOR2scpT9yrckTanEjg5Is
+# 42Q6T4Gu/ep93XEOJxoYIIEI/BWtgvg9Ax3a8jGL5syNs29DFzk0fUfj5GELFH+a
+# AV9AzU/yqeughvum+oCiYEvAa1mgDi8LMypxlYWsF1FjK97MbBtZaz6bEL4KvRaa
+# 3Rjt35X9I/yUqOcUFeCMHW+DxbaoXamOOqNESAqrMk12qksjjB7ErQRH6tm3Chtz
+# bF9MbNYXfXR6YCgQrgTBX2+RB8VBK1CZnHkFDBbJsHSOI5/1fKKbLFvKZz86QISc
+# a3cJM0USW7SEZP3YGvURq7reTPPEhA2VHL/2MoojIofr6VsaaBjVVN2XXH7kRzhc
+# LsSB0UsstqzptS2JMerHdo2DGeorCqVgFgNcLmOGQ9gxmbxvErRRcsqlxiQfo9wr
+# YhYFrDQLnFv/b6GCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJ
 # BgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjFBMD8GA1UEAxM4RGln
 # aUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNBNDA5NiBTSEEyNTYgMjAy
 # NSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUDBAIBBQCgaTAYBgkqhkiG
-# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjAxMTMxNzMxMTBa
-# MC8GCSqGSIb3DQEJBDEiBCCz8GQpWUIwC1oQ2aAg7cumqOR8AtrifmdTtcsFasEh
-# UDANBgkqhkiG9w0BAQEFAASCAgCcPxMqrJKnkfBETqL51J1+CNboyW1z+3aULk/r
-# mBh+8qA6tbdRpfvolrqTzO7Da2cVz8SGdUJa0l/+NWjsNhfZCddiHJjUt7gOBDHD
-# Fxt4tNdl+ay9OjnpATgqj2KafRMk/hz5JEpRA7mGYcFww6vxxUnKOIqEMCC/u+EX
-# pdyRfqfA18polopD6EU6ryADTfQ7PHvIw5X74ckRnPhUPYU3WiNcS09iMSlYVgO6
-# TGSVKb7kQiVTSAIl8nlPWyeXnJCiUHr/az/uMRTyH5Lo95gSs97gHhysUs/mJaXp
-# nLr/sAas2+NlSkVwJ4SciBxKfLE/d44UP9beHsQ/leRoKNsDekfIN5moBVERqBnH
-# 9wQpJ2R8m0Sb7A/23UVZXe560Vdo0Aa9ktxveRcndxdMZD28p3uIMiUPNjpNp6Aa
-# VP4cjmMDskxL9ewreOxmbN3ZIbBQ4rCJvFOOXSab1BjHJ59Zk2YPB1tDz7f1wJZF
-# gxjTj35DzsLnoZNIrDuerXGt3JnOZiD6v0kdmNH34MkEB9nxTV2wxq7cjV0wk/1l
-# XXz1o9C/0pEA9Zpcvkdpz8hPN2pkFJCb+t4Fvn3s1Cd4a9PtXGodVD1JV5COkkKi
-# 1Uqn0r5z1L8OhUgDub5xAU4Ke0DI6tqZYLTRtoJp+qg9FoW5HTPilK+qT0o8W8Rm
-# x2LFBw==
+# 9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjAzMjAxODA1NDBa
+# MC8GCSqGSIb3DQEJBDEiBCCw4yYRR5cPX0KlOTBfNcaoggYpWocajM1bBywD6U91
+# tTANBgkqhkiG9w0BAQEFAASCAgBESiDnA8UTSfvViRfx1SAgJ9UYf0HGXhkZyQSa
+# +jsSnc2Q72llOePoUpew+JDaBjbw7/KIb6gDyySjDe4hA3YtWmBPpFu1ZW2AhPkX
+# loamtARLIYyeBZ2cikrWHtwhTtwcC1Lj2u0IwXlUK2qBx7Kad+L/PLmDDKuy9X7w
+# y302IzRoJgrYQSPE3GXGdxGpzB4vySVd917O38AYa0PyihV7cH/myyARKHiMgA3E
+# MSanHmbEe6MdmJP4hEWtuZMOHVcGGdgfCDelClJ/z+o4CmEe69jBgXZ9GKru+Ek2
+# I87xRSlk5DdfGtQtXZeQi+hh0NroVq1WTgUN5oAoNbmZHGn+y08S9Pu9wLyaRcql
+# CYXWJCU6J2cBzDYLA4EnFolUsLyK+q2Xjk3HD/5gcXQrFTONv5Y8y2O+n6gF4e9z
+# 2Y07qhRocJkypGTSx/KYnoqQlBIEvuEGkkQkcUff5GtbdGwBkwiL5jKGENksWBOm
+# JPLhWQGSrpa3mJ7zXa/h7xv2W8JtRn39PPI8DR0Y2QoANQTPHJ3tipVPT00lnhJY
+# xSMHMt2xMbTnhx8kK8AgNpe4WSoZTjp8ovAypf30beCJEgqSkWVoOPZjmlmzg3lj
+# VhXulqbSjS0iXr5acBuqfwddJsZ02/lXi4RY8/jz2y7MOEpCt16sSIX8OstJ3pVK
+# MCZvdA==
 # SIG # End signature block
