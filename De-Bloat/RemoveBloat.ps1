@@ -851,7 +851,7 @@ else {
 }
 
 ##Kill Cortana again
-Get-AppxPackage Microsoft.549981C3F5F10 -allusers | Remove-AppxPackage
+Get-AppxPackage Microsoft.549981C3F5F10 -allusers | Remove-AppxPackage -AllUsers
 
 
 
