@@ -301,7 +301,14 @@ $WhitelistedApps = @(
     'Microsoft.HEVCVideoExtension',
     'Microsoft.AV1VideoExtension',
     'Microsoft.RawImageExtension',
-    'Microsoft.AVCEncoderVideoExtension'
+    'Microsoft.AVCEncoderVideoExtension',
+    # Nexara additions — apps kept intentionally
+    'Microsoft.PowerAutomateDesktop',
+    'Microsoft.PowerAutomateDesktopCopilotPlugin',
+    'Microsoft.ZuneMusic',
+    'Microsoft.ZuneVideo',
+    'Microsoft.SysinternalsSuite',
+    'MicrosoftCorporationII.QuickAssist'
 )
 ##If $customwhitelist is set, split on the comma and add to whitelist
 if ($customwhitelist) {
@@ -1091,6 +1098,8 @@ if ($version -like "*Windows 10*") {
 #                                           Windows CoPilot                                                #
 #                                                                                                          #
 ############################################################################################################
+# Nexara: Windows Copilot is intentionally kept enabled — section below is disabled.
+<#
 $version = Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty Caption
 if ($version -like "*Windows 11*") {
     write-output "Removing Windows Copilot"
@@ -1181,6 +1190,7 @@ if ($version -like "*Windows 11*") {
         }
     }
 }
+#>
 ############################################################################################################
 #                                              Remove Recall                                               #
 #                                                                                                          #
