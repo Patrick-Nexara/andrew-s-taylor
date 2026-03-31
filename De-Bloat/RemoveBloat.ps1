@@ -656,35 +656,10 @@ Set-ItemProperty $registryPath EnableDynamicContentInWSB -Value 0
 #Prevents bloatware applications from returning and removes Start Menu suggestions
 write-output "Adding Registry key to prevent bloatware apps from returning"
 $registryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
-$registryOEM = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
 If (!(Test-Path $registryPath)) {
     New-Item $registryPath
 }
 Set-ItemProperty $registryPath DisableWindowsConsumerFeatures -Value 1
-if ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name -ne "NT AUTHORITY\SYSTEM") {
-If (!(Test-Path $registryOEM)) {
-    New-Item $registryOEM
-}
-Set-ItemProperty $registryOEM  ContentDeliveryAllowed -Value 0
-Set-ItemProperty $registryOEM  OemPreInstalledAppsEnabled -Value 0
-Set-ItemProperty $registryOEM  PreInstalledAppsEnabled -Value 0
-Set-ItemProperty $registryOEM  PreInstalledAppsEverEnabled -Value 0
-Set-ItemProperty $registryOEM  SilentInstalledAppsEnabled -Value 0
-Set-ItemProperty $registryOEM  SystemPaneSuggestionsEnabled -Value 0
-}
-##Loop through users and do the same
-foreach ($sid in $UserSIDs) {
-    $registryOEM = "Registry::HKU\$sid\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
-    If (!(Test-Path $registryOEM)) {
-        New-Item $registryOEM
-    }
-    Set-ItemProperty $registryOEM  ContentDeliveryAllowed -Value 0
-    Set-ItemProperty $registryOEM  OemPreInstalledAppsEnabled -Value 0
-    Set-ItemProperty $registryOEM  PreInstalledAppsEnabled -Value 0
-    Set-ItemProperty $registryOEM  PreInstalledAppsEverEnabled -Value 0
-    Set-ItemProperty $registryOEM  SilentInstalledAppsEnabled -Value 0
-    Set-ItemProperty $registryOEM  SystemPaneSuggestionsEnabled -Value 0
-}
 
 #Preping mixed Reality Portal for removal
 write-output "Setting Mixed Reality Portal value to 0 so that you can uninstall it in Settings"
